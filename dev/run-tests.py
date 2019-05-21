@@ -112,6 +112,7 @@ def determine_modules_to_test(changed_modules):
     ['graphx', 'examples']
     >>> x = [x.name for x in determine_modules_to_test([modules.sql])]
     >>> x # doctest: +NORMALIZE_WHITESPACE
+    ...   # doctest: +SKIP
     ['sql', 'avro', 'hive', 'mllib', 'sql-kafka-0-10', 'examples', 'hive-thriftserver',
      'pyspark-sql', 'repl', 'sparkr', 'pyspark-mllib', 'pyspark-ml']
     """
@@ -122,8 +123,14 @@ def determine_modules_to_test(changed_modules):
     # If we need to run all of the tests, then we should short-circuit and return 'root'
     if modules.root in modules_to_test:
         return [modules.root]
-    return toposort_flatten(
+    changed_modules = toposort_flatten(
         {m: set(m.dependencies).intersection(modules_to_test) for m in modules_to_test}, sort=True)
+
+    # TODO: Skip hive-thriftserver module for hadoop-3.2. remove this once hadoop-3.2 support it
+    if modules.hadoop_version == "hadoop3.2":
+        changed_modules = [m for m in changed_modules if m.name != "hive-thriftserver"]
+
+    return changed_modules
 
 
 def determine_tags_to_exclude(changed_modules):
@@ -297,8 +304,7 @@ def build_spark_maven(hadoop_version):
     mvn_goals = ["clean", "package", "-DskipTests"]
     profiles_and_goals = build_profiles + mvn_goals
 
-    print("[info] Building Spark (w/Hive 1.2.1) using Maven with these arguments: ",
-          " ".join(profiles_and_goals))
+    print("[info] Building Spark using Maven with these arguments: ", " ".join(profiles_and_goals))
 
     exec_maven(profiles_and_goals)
 
@@ -310,8 +316,7 @@ def build_spark_sbt(hadoop_version):
                  "streaming-kinesis-asl-assembly/assembly"]
     profiles_and_goals = build_profiles + sbt_goals
 
-    print("[info] Building Spark (w/Hive 1.2.1) using SBT with these arguments: ",
-          " ".join(profiles_and_goals))
+    print("[info] Building Spark using SBT with these arguments: ", " ".join(profiles_and_goals))
 
     exec_sbt(profiles_and_goals)
 
@@ -323,7 +328,7 @@ def build_spark_unidoc_sbt(hadoop_version):
     sbt_goals = ["unidoc"]
     profiles_and_goals = build_profiles + sbt_goals
 
-    print("[info] Building Spark unidoc (w/Hive 1.2.1) using SBT with these arguments: ",
+    print("[info] Building Spark unidoc using SBT with these arguments: ",
           " ".join(profiles_and_goals))
 
     exec_sbt(profiles_and_goals)
@@ -334,7 +339,7 @@ def build_spark_assembly_sbt(hadoop_version, checkstyle=False):
     build_profiles = get_hadoop_profiles(hadoop_version) + modules.root.build_profile_flags
     sbt_goals = ["assembly/package"]
     profiles_and_goals = build_profiles + sbt_goals
-    print("[info] Building Spark assembly (w/Hive 1.2.1) using SBT with these arguments: ",
+    print("[info] Building Spark assembly using SBT with these arguments: ",
           " ".join(profiles_and_goals))
     exec_sbt(profiles_and_goals)
 
@@ -546,7 +551,9 @@ def main():
         hadoop_version = os.environ.get("AMPLAB_JENKINS_BUILD_PROFILE", "hadoop2.7")
         test_env = "amplab_jenkins"
         # add path for Python3 in Jenkins if we're calling from a Jenkins machine
-        os.environ["PATH"] = "/home/anaconda/envs/py3k/bin:" + os.environ.get("PATH")
+        # TODO(sknapp):  after all builds are ported to the ubuntu workers, change this to be:
+        # /home/jenkins/anaconda2/envs/py36/bin
+        os.environ["PATH"] = "/home/anaconda/envs/py36/bin:" + os.environ.get("PATH")
     else:
         # else we're running locally and can use local settings
         build_tool = "sbt"

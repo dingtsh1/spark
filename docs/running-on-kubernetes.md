@@ -1,6 +1,21 @@
 ---
 layout: global
 title: Running Spark on Kubernetes
+license: |
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+ 
+     http://www.apache.org/licenses/LICENSE-2.0
+ 
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 ---
 * This will become a table of contents (this text will be scraped).
 {:toc}
@@ -776,6 +791,15 @@ See the [configuration page](configuration.html) for information on Spark config
   <td><code>1s</code></td>
   <td>
     Interval between reports of the current Spark job status in cluster mode.
+  </td>
+</tr>
+<tr>
+  <td><code>spark.kubernetes.driver.request.cores</code></td>
+  <td>(none)</td>
+  <td>
+    Specify the cpu request for the driver pod. Values conform to the Kubernetes <a href="https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#meaning-of-cpu">convention</a>.
+    Example values include 0.1, 500m, 1.5, 5, etc., with the definition of cpu units documented in <a href="https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/#cpu-units">CPU units</a>.
+    This takes precedence over <code>spark.driver.cores</code> for specifying the driver pod cpu request if set.
   </td>
 </tr>
 <tr>

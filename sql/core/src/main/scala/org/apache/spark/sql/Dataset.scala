@@ -50,6 +50,7 @@ import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.arrow.{ArrowBatchStreamWriter, ArrowConverters}
 import org.apache.spark.sql.execution.command._
 import org.apache.spark.sql.execution.datasources.LogicalRelation
+import org.apache.spark.sql.execution.datasources.v2.{DataSourceV2Relation, FileTable}
 import org.apache.spark.sql.execution.python.EvaluatePython
 import org.apache.spark.sql.execution.stat.StatFunctions
 import org.apache.spark.sql.streaming.DataStreamWriter
@@ -694,8 +695,14 @@ class Dataset[T] private[sql](
   // defined on a derived column cannot referenced elsewhere in the plan.
   def withWatermark(eventTime: String, delayThreshold: String): Dataset[T] = withTypedPlan {
     val parsedDelay =
-      Option(CalendarInterval.fromString("interval " + delayThreshold))
-        .getOrElse(throw new AnalysisException(s"Unable to parse time delay '$delayThreshold'"))
+      try {
+        CalendarInterval.fromCaseInsensitiveString(delayThreshold)
+      } catch {
+        case e: IllegalArgumentException =>
+          throw new AnalysisException(
+            s"Unable to parse time delay '$delayThreshold'",
+            cause = Some(e))
+      }
     require(parsedDelay.milliseconds >= 0 && parsedDelay.months >= 0,
       s"delay threshold ($delayThreshold) should not be negative.")
     EliminateEventTimeWatermark(
@@ -2151,6 +2158,11 @@ class Dataset[T] private[sql](
    * `column`'s expression must only refer to attributes supplied by this Dataset. It is an
    * error to add a column that refers to some other Dataset.
    *
+   * @note this method introduces a projection internally. Therefore, calling it multiple times,
+   * for instance, via loops in order to add multiple columns can generate big plans which
+   * can cause performance issues and even `StackOverflowException`. To avoid this,
+   * use `select` with the multiple columns at once.
+   *
    * @group untypedrel
    * @since 2.0.0
    */
@@ -3170,6 +3182,8 @@ class Dataset[T] private[sql](
         fr.inputFiles
       case r: HiveTableRelation =>
         r.tableMeta.storage.locationUri.map(_.toString).toArray
+      case DataSourceV2Relation(table: FileTable, _, _) =>
+        table.fileIndex.inputFiles
     }.flatten
     files.toSet.toArray
   }
